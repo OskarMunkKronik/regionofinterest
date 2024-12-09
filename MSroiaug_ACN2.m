@@ -226,6 +226,7 @@ for T=1:size(mzroi,2)
     end
     MSroi_aug(:,T)=MSroi_augT;
 end
+if Options.SumMSLevels 
 if size(mzroi,2)>1
     for k=1:max(mzroiAll(:,2))
         minScan = min(size(MSroi_aug{k,1},2),size(MSroi_aug{k,2},2));
@@ -235,6 +236,7 @@ if size(mzroi,2)>1
     MSroi_aug(:,2)=[];
 end
 end
+end 
 % %%  Unfolded 2D tensor:
 % function [MSroi_aug]=Unfolded2DTensor(MSroi,mzroi,mzroiAll,Options)
 % %Pre-allocate space for Augmented and summed intensities

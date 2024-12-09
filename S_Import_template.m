@@ -7,25 +7,24 @@ S_OptionsStruct
 
 %% Get list of CDF files that needs to be subjected to ROI 
 cd(Options.Paths.CDF)
-fileList = dir('*.CDF');
+fileList                                          = dir(['*',Options.ROI.MS1_Suffix]);
 Options.ROI.mzOptimization.SamplesForOptimization = randi([1,length(fileList)],Options.ROI.mzOptimization.nSamples,1);
 save([Options.Paths.save2mat,'OptionsFile.mat'],"Options","path2OptionsFile")
 %% Optimize 
 %Pre-allocate space 
 [mzerror_Sample,nmz] = deal(zeros(length(Options.ROI.mzOptimization.MZmultiplyFactors),length(Options.ROI.mzOptimization.SamplesForOptimization)));
-parpool(3)
+% parpool(3)
 for n = 1:Options.ROI.mzOptimization.nSamples
-    k = Options.ROI.mzOptimization.SamplesForOptimization(n);
-    [mzerror_Sample(:,n),~,nmz(:,n)]=OptParamRoi(fileList(k).name,Options.ROI.mzOptimization.mzerror,Options.ROI.mzOptimization.MZmultiplyFactors,Options.ROI.minroi,Options.ROI);
+    k                                   =  Options.ROI.mzOptimization.SamplesForOptimization(n);
+    [mzerror_Sample(:,n),~,nmz(:,n)]    =  OptParamRoi(fileList(k).name,Options.ROI.mzOptimization.mzerror,Options.ROI.mzOptimization.MZmultiplyFactors,Options.ROI.minroi,Options.ROI);
 end
 
 %Calculate the median mzerrror of all the samples used in the optimizationn
-%       
 Options.ROI.mzerror = median(mzerror_Sample,'all');
 
 %% Plot for visualisation
 figure
-p = plot( Options.ROI.mzOptimization.MZmultiplyFactors*Options.ROI.mzOptimization.mzerror,nmz(:,n));
+p  = plot( Options.ROI.mzOptimization.MZmultiplyFactors*Options.ROI.mzOptimization.mzerror,nmz(:,n));
 hold on
 ps = scatter(Options.ROI.mzerror,nmz(Options.ROI.mzerror == Options.ROI.mzOptimization.MZmultiplyFactors*Options.ROI.mzOptimization.mzerror,n),'red','filled');
 legend([p,ps],{fileList(Options.ROI.mzOptimization.SamplesForOptimization).name,'selected m/z error'})
@@ -36,7 +35,7 @@ ylabel('Number of m/z traces / ROIs')
 
 %% ROI processing 
 [mzroi,MSroi,Rt] = deal(cell(length(fileList),Options.ROI.NumTrace));
-NbrePts = length(fileList)*Options.ROI.NumTrace;
+NbrePts          = length(fileList)*Options.ROI.NumTrace;
 
 close all
 % Waitbar's Message Field
@@ -45,21 +44,23 @@ Msg = ['Sample ',num2str(1),' - ROI Progress...!'];
 [hWaitbar,hWaitbarMsgQueue]= ParForWaitbarCreateMH(Msg,NbrePts);
 
 
-
-for T = Options.ROI.NumTrace
+ fileList_MS2 = dir([[Options.Paths.CDF_MS2,'\*',Options.ROI.MS2_Suffix]]);
+for T = 1:Options.ROI.NumTrace
     fprintf(1,'Trace: %i/%i\n',T,Options.ROI.NumTrace)
 
-    for k = 1:length(fileList)
+    parfor k = 1:length(fileList)
         if T == 1
+            cd(Options.Paths.CDF)
             FileName = fileList(k).name;
         else 
-
-            FileName = dir([Options.Paths.CDF_MS2,fileList(k).name(1:end-Options.ROI.RemoveSuffix),'.*']);
+            cd(Options.Paths.CDF_MS2)
+            FileName = fileList_MS2(contains({fileList_MS2.name},fileList(k).name(1:end-Options.ROI.RemoveSuffix))).name;
         end 
         hWaitbarMsgQueue.send(0);
               
         % ROI
-        [mzroi{k,T},MSroi{k,T},~,     ~,      ~,     Rt,~,~] = ROIpeaks_ACN(FileName,Options.ROI);
+        [mzroi{k,T},MSroi{k,T},~,     ~,      ~,     Rt{k,T},~,~] = ROIpeaks_ACN(FileName,Options.ROI);
+       
     end
 
 end
