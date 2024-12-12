@@ -24,6 +24,7 @@ Available at: https://github.com/your-repository-link
 Contributions
 Contributions are welcome! If you have ideas for improvements or would like to report an issue, please submit a pull request or open an issue in this repository.
 
+Test data is available through this link: https://zenodo.org/uploads/14409699
 Acknowledgments
 Thank you for using this repository! 
 
