@@ -1,6 +1,11 @@
 Overview
 Welcome to this repository! The code provided here is designed for region of interest detection in chromatographic and ion mobility data hyphenated to high-resolution mass spectrometry (HRMS). It has been developed to support research and innovation in the field of separation science and data processing of HRMS.
 
+To run the code: 
+You have to write in your hyperparameters and paths into the 'S_OptionsStruct.m' file, and then you can execute the 'S_Import_template.m' for performing the ROI detection etc. 
+
+Additionally a template file for plotting extracted ion chromatograms is provided 'S_Plot_EICs.m'. 
+
 License and Terms of Use
 The code in this repository is open for non-commercial research purposes. You are encouraged to:
 
