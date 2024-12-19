@@ -88,7 +88,11 @@ end
 PeaksMat      = zeros(readNpoints,4,'double');
 PeaksMat(:,1) = ncread(FileName,'mass_values',readPars{:});
 PeaksMat(:,2) = ncread(FileName,'intensity_values',readPars{:});
-PeaksMat(:,3) = repelem(Options.RtInt(1):Options.RtInt(2),pts)';
+if Options.IMS
+    PeaksMat(:,3) = ncread(FileName,'scan_acquisition_number');
+else 
+    PeaksMat(:,3) = repelem(Options.RtInt(1):Options.RtInt(2),pts)';
+end 
 % Read driftTimes
  
 aa = tic;

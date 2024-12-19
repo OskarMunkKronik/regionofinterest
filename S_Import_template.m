@@ -1,7 +1,7 @@
 
 
 %% Load Options file 
-path2OptionsFile = 'D:\data\Oskar\ShortCommunication\CodeGit\roi-paper\ACN\regionofinterest\';
+path2OptionsFile = 'C:\Users\mht541\Documents\2D_LC_IMS_R\2DIMS\regionofinterest';
 cd(path2OptionsFile)
 S_OptionsStruct  
 
@@ -48,7 +48,7 @@ Msg = ['Sample ',num2str(1),' - ROI Progress...!'];
 for T = 1:Options.ROI.NumTrace
     fprintf(1,'Trace: %i/%i\n',T,Options.ROI.NumTrace)
 
-    parfor k = 1:length(fileList)
+    for k = 1:length(fileList)
         if T == 1
             cd(Options.Paths.CDF)
             FileName = fileList(k).name;
