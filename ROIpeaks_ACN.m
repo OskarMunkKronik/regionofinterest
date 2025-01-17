@@ -1,38 +1,45 @@
-function[mzroi,MSroi,PeaksMat,runTime,sizeMZRoI,Rt,PeaksMat1,Dt]=ROIpeaks_ACN(FileName,Options)%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean)
-%ROIpeaks_Oskar finds regions of interest in the chromatographic and mass
+function[mzroi,MSroi,PeaksMat,runTime,sizeMZRoI,Rt,Dt]=ROIpeaks_ACN(FileName,Options)
+%ROIpeaks_ACN finds regions of interest in the chromatographic and mass
 %spectral dimension. It performs the binning of the mass spectral
 %measurements by organizing the cell array with all mass spectral
 %measurements into a matrix. Then it sorts the rows according to m/z value.
 %Afterwich it performs binning, by binning the mass spectral measurements by taking the first value + mzerror
-%all m/z which falls in this range are binned together. At the end the mean
+%all m/z which falls in this range are binned together. At the end the
+%intensity weighted mean (wmean = 1) or median (wmean = 0)
 %m/z is calculated for the mass bin.
 
 %Input:
-%Options
-
-%sScan: Is the beginning of the retention time interval in scan number wanting to be
-%processed
-
-%eScan: End of retention time interval in scan numbers
-
-%mzerror: is the user specified allowed mass error for the ROI
-%procedure to use. Typically set to a multiple of the mass accuracy of
-%the mass spectrometer
-
-%ppm: defines whether the mzerror is defined in ppm (ppm==1) or Da (ppm=0)
-
-%thresh: Is the intensity threshold below which data points are
-%exluded.
+    %FileName: The name of the CDF file to be processed.
+    %Options:
+        %RtInt: RtInt(1):   Is the beginning of the retention time interval in scan number wanting to be
+        %                   processed. RtInt(2): End of retention time interval in scan numbers
+        %mzerror:           is the user specified allowed mass error for the ROI
+        %                   procedure to use. Typically set to a multiple of the mass accuracy of
+        %                   the mass spectrometer
+        %ppm:               Defines whether the mzerror is defined in ppm (ppm==1) or Da (ppm=0)
+        %thresh:            Is the intensity threshold below which data points are
+        %                   exluded.
+        %minroi:            filters away ROIs with less consecutive scans than specified in
+        %minroi
+        %GapAllowed:        Allows for a number of missing scan points inside the ROI
+        %IMS:               true if you have IMS data. The minroi filter will be done on the
+        %                   mobilograms 
+        %wmean:             i                   ntensity weighted mean (wmean = 1) or median (wmean = 0) m/z is calculated for the mass bin.
+        %CollapseRoIs:      If true: than m/z traces are created with ROIs
+        %                   of the same m/z, if false ROIs confined in m/z and Rt and Dt are
+        %                   stored in MSroi.
 
 %Output:
-%mzroi: Median m/z of the m/z's in each region of interest.
-
-%MSroi: Sparse Data matrix with summed intensities. Dimensions (m/z x Scan number)
-
-%Rawdata: Sorted raw data with m/z, Intensity, scan number and m/z groups.
+    %mzroi:         Median m/z of the m/z's in each region of interest.
+    %MSroi:         Sparse Data matrix with summed intensities. Dimensions (m/z x Scan number)
+    %Rawdata:       Sorted raw data with m/z, Intensity, scan number and m/z groups.
+    %runTime:       processing time after loading of the data. 
+    %sizeMZRoI:     Dimensions of the MSroi matrix
+    %Rt:            Chromatographic retention time
+    %Dt:            Drift time
 
 %Authors: Oskar Munk Kronik/Giorgio Tomasi
-%email: oskarmunkkronik@gmail.com
+%email:   oskarmunkkronik@gmail.com
 
 
 %% Initialize
@@ -46,15 +53,6 @@ Options = checkOptions(Options,nScans);
 %%
 % tic
 %Organize data
-% memory
-% PeaksMat=cat(2,single(SampleStruct.mass_values.data)...
-%     ,single(SampleStruct.intensity_values.data)...
-%     ,single(repelem(Options.RtInt(1):length(SampleStruct.point_count.data),SampleStruct.point_count.data))'...
-%     ,zeros(length(SampleStruct.mass_values.data),1,'single')...
-%     ); %%%% FIX ME: WRITE INTO SAMPLESTRUCT
-%Intensity filter and Retention Time Window
-% PeaksMat=single(PeaksMat);
-% memoryt
 
 %Load cdf and create PeaksMat
 pts                = ncread(FileName,'point_count');
@@ -89,10 +87,57 @@ PeaksMat      = zeros(readNpoints,4,'double');
 PeaksMat(:,1) = ncread(FileName,'mass_values',readPars{:});
 PeaksMat(:,2) = ncread(FileName,'intensity_values',readPars{:});
 if Options.IMS
-    PeaksMat(:,3) = ncread(FileName,'scan_acquisition_number');
+    scan_number = ncread(FileName,'scan_acquisition_number');
+    PeaksMat(:,3) = repelem(scan_number,pts)';
+    
 else 
     PeaksMat(:,3) = repelem(Options.RtInt(1):Options.RtInt(2),pts)';
 end 
+
+if Options.RefMass
+    % Load RefMass 
+    Rt_RefMass                 =    single(ncread([Options.RefMass_dir,'\',FileName],'scan_acquisition_time'));
+    mass_values_RefMass        =    ncread([Options.RefMass_dir,'\',FileName],'mass_values');
+    intensity_values_RefMass   =    ncread([Options.RefMass_dir,'\',FileName],'intensity_values');
+    
+    pts_RefMass                        =    ncread([Options.RefMass_dir,'\',FileName],'point_count');
+%     scan_index_RefMass        =    = [0;cumsum(pts(1:end-1))];
+    scan_index_RefMass        =     repelem( [1:length(pts_RefMass)], ncread([Options.RefMass_dir,'\',FileName],'point_count'));
+    Ind_RefMass                =    intensity_values_RefMass > Options.RefMass_thresh & abs(mass_values_RefMass-Options.RefMass_mz) < Options.RefMass_mzDev;
+%     Rt_RefMass = Rt_RefMass(Ind_RefMass);
+    
+    
+    Rt_Sample = Rt;%(PeaksMat(:,3));
+    RefMass_closest = zeros(length(Rt_Sample),1);
+    nSam = 1;
+    lenRefRt = length(Rt_RefMass);
+    RefMass_mz_diff = nan(lenRefRt,1);
+    RefMass_closest(1) = 1;
+    nRef = 1;
+    start = find(Rt_Sample>Rt_RefMass(nRef),1,'first');
+    for nSam = start : length(Rt_Sample)
+        
+        Rt_diff =  Rt_Sample(nSam) - Rt_RefMass(nRef);
+        if nRef < lenRefRt & Rt_diff > Rt_RefMass(nRef+1) - Rt_Sample(nSam)
+           RefMass_closest(nSam) = 1; 
+           sub_mz  = mass_values_RefMass(scan_index_RefMass == nRef);
+           sub_int = intensity_values_RefMass(scan_index_RefMass == nRef);
+%            [max_intensity,max_ind] = max(sub_int(Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev)));
+          if ~isempty(Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev))
+RefMass_mz_diff(nRef) =  Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev);
+%            RefMass_mz_diff(nRef) = sub_mz(Ind);
+          end 
+           nRef = nRef + 1; 
+
+        end 
+    end 
+    RefMass_mz_diff(isnan(RefMass_mz_diff)) = median(RefMass_mz_diff,'omitnan');
+    RefMass_closest =  repelem( [cumsum(RefMass_closest)], pts);
+    RefMass_mz_diff =  RefMass_mz_diff(RefMass_closest);
+    LockMass_Corr = RefMass_mz_diff./Options.RefMass_mz;
+    PeaksMat(:,1) = (1+LockMass_Corr).*PeaksMat(:,1);
+end   
+%         nSam
 % Read driftTimes
  
 aa = tic;
@@ -206,14 +251,15 @@ end
 % Raw data prior to the chromatographic filter
 % Chromatographic filter: excludes measurements which has <
 % chromatographically consecutive points than specified by minroi
-PeaksMat1 = PeaksMat;
+% PeaksMat1 = PeaksMat;
 PeaksMat(:,1)=round(mzroi(PeaksMat(:,4)),Options.nDecimals);
+if Options.minroi > 1
 [PeaksMat,gaps,~,flagMZ] = minroiFilter2(PeaksMat,flag,Options);
-mzVec = repelem(mzVec(flagMZ(1:end-1)),gaps+1); %Removes exluded m/z due to minroiFilter2 and replicates m/z of gaps 
+mzVec = repelem(mzVec(flagMZ(1:end-1)),gaps+1); %Removes exluded m/z due to minroiFilter2 and replicates m/z of gaps  
 if (Options.GapAllowed && any(gaps)), PeaksMat = fillGaps(PeaksMat,gaps); end
 %Calculates new number of data points in PeaksMat after minroiFilter2
 nPts = height(PeaksMat); 
-
+end
 %Collapse regions with the same m/z
 if Options.CollapseRoIs
 PeaksMat(:,4) = 0;
@@ -332,7 +378,13 @@ outOptions = struct('minroi',10,...
     'fillIn',0, ...
     'CollapseRoIs',true, ...
     'nDecimals',4, ...
-    'IMS',false);
+    'IMS',false,...
+    'RefMass',false,...
+    'RefMass_mz',    [],...
+    'RefMass_mzDev', 0.1,...
+    'RefMass_thresh', 10^3,...
+    'RefMass_dir','');
+
 if (~isstruct(inOptions)), error('Invalid options'); end
 optionNames = fieldnames(outOptions);
 if (isfield(inOptions,'verbose')), outOptions.verbose = inOptions.verbose; end
@@ -364,6 +416,11 @@ for (i = 1:length(optionNames))
                 case 'CollapseRoIs',    fprintf(1,' TRUE by default')
                 case 'nDecimals',    fprintf(1,' 4 by default')
                 case 'IMS',        fprintf(1,'  false by default')
+                case 'RefMass',        fprintf(1,'  false by default')
+                case 'RefMass_mz',        fprintf(1,'  empty by default') 
+                case 'RefMass_mzDev',        fprintf(1,'  +/- 0.1 Da by default') 
+                case 'RefMass_thresh',        fprintf(1,'  10^3 by default') 
+                case 'RefMass_dir',        fprintf(1,'Empty by default')
                 otherwise, fprintf(1,' Default is used')
 
             end

@@ -34,7 +34,7 @@ ylabel('Number of m/z traces / ROIs')
 
 
 %% ROI processing 
-[mzroi,MSroi,Rt] = deal(cell(length(fileList),Options.ROI.NumTrace));
+[mzroi,MSroi,Rt,Dt] = deal(cell(length(fileList),Options.ROI.NumTrace));
 NbrePts          = length(fileList)*Options.ROI.NumTrace;
 
 close all
@@ -48,7 +48,7 @@ Msg = ['Sample ',num2str(1),' - ROI Progress...!'];
 for T = 1:Options.ROI.NumTrace
     fprintf(1,'Trace: %i/%i\n',T,Options.ROI.NumTrace)
 
-    for k = 1:length(fileList)
+    for k = 2% 1:length(fileList)
         if T == 1
             cd(Options.Paths.CDF)
             FileName = fileList(k).name;
@@ -59,7 +59,7 @@ for T = 1:Options.ROI.NumTrace
         hWaitbarMsgQueue.send(0);
               
         % ROI
-        [mzroi{k,T},MSroi{k,T},~,     ~,      ~,     Rt{k,T},~,~] = ROIpeaks_ACN(FileName,Options.ROI);
+        [mzroi{k,T},MSroi{k,T},~,     ~,      ~,     Rt{k,T},Dt{k,T}] = ROIpeaks_ACN(FileName,Options.ROI);
        
     end
 

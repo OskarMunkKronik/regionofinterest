@@ -12,8 +12,9 @@ Vecmzerror=repelem(MassAccuracy,length(MZmultiplyFactors)).*MZmultiplyFactors;
 
 % %% Optimization
 % OptionsROI = struct(    
-ppm = true;
-    thresh = Options.thresh;
+ ppm = Options.ppm;
+ IMS = Options.IMS;
+ thresh = Options.thresh;
  wmean = Options.wmean;
  GapAllowed = Options.GapAllowed;
  prefilter = Options.prefilter;
@@ -32,7 +33,7 @@ for mr=1:length(Vecminroi)
            
         % Options.mzerror=Vecmzerror(mass);
       
-        mzroi=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
+        mzroi=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn,'IMS',IMS));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
      
         nmz(mr,mass)=length(mzroi);
           end
