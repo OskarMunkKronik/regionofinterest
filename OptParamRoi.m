@@ -2,41 +2,40 @@
 function [mzDev,minroi,nmz]=OptParamRoi(FileName,MassAccuracy,MZmultiplyFactors,Vecminroi,Options)%,thresh,ppm,wmean,sScan,eScan)
 
 %waitbar
-  close all force
-    NbrePts =length(MZmultiplyFactors*Vecminroi);
-        % Waitbar's Message Field
-    Msg = 'Determination of the mass accuracy...!';
-    % Create ParFor Waitbar
-    [~,hWaitbarMsgQueue]= ParForWaitbarCreateMH(Msg,NbrePts);
+close all force
+NbrePts =length(MZmultiplyFactors*Vecminroi);
+% Waitbar's Message Field
+Msg = 'Determination of the mass accuracy...!';
+% Create ParFor Waitbar
+[~,hWaitbarMsgQueue]= ParForWaitbarCreateMH(Msg,NbrePts);
 Vecmzerror=repelem(MassAccuracy,length(MZmultiplyFactors)).*MZmultiplyFactors;
 
 % %% Optimization
-% OptionsROI = struct(    
- ppm = Options.ppm;
- IMS = Options.IMS;
- thresh = Options.thresh;
- wmean = Options.wmean;
- GapAllowed = Options.GapAllowed;
- prefilter = Options.prefilter;
- verbose   = Options.verbose;
- fillIn    = Options.fillIn;
+% OptionsROI = struct(
+ppm = Options.ppm;
+IMS = Options.IMS;
+thresh = Options.thresh;
+wmean = Options.wmean;
+GapAllowed = Options.GapAllowed;
+prefilter = Options.prefilter;
+verbose   = Options.verbose;
+fillIn    = Options.fillIn;
+NumTrace = Options.NumTrace
 
 nmz=zeros(length(Vecminroi),length(Vecmzerror));
-
 for mr=1:length(Vecminroi)
     minroi=Vecminroi(mr);
     lenMZ=length(Vecmzerror);
     fprintf(1,'minroi: %i/%i\n',mr,length(Vecminroi))
 
-    parfor mass=1:length(Vecmzerror)
-         hWaitbarMsgQueue.send(0);
-           
+    for mass=1:length(Vecmzerror)
+        hWaitbarMsgQueue.send(0);
+
         % Options.mzerror=Vecmzerror(mass);
-      
-        mzroi=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn,'IMS',IMS));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
-     
+
+        [mzroi,MSroi,~,~,~,~,~]=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn,'IMS',IMS,'NumTrace',NumTrace));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
         nmz(mr,mass)=length(mzroi);
-          end
+    end
 end
 [minroi,mzDev]=find(nmz(:,:,1)==max(nmz(:,:,1),[],'all'));
 if length(Vecminroi)>1
@@ -45,7 +44,7 @@ if length(Vecminroi)>1
     surf(XCo,YCo,nmz')
     colorbar
     axis tight
-    
+
     view(0,90)
 else
     figure
