@@ -1,4 +1,4 @@
-function[mzroi,MSroi,PeaksMat,runTime,sizeMZRoI,Rt,Dt]=ROIpeaks_ACN(FileName,Options)
+function[mzroi,MSroi,PeaksMat,runTime,sizeMZRoI,Rt,Dt,trace]=ROIpeaks_ACN(FileName,Options)
 %ROIpeaks_ACN finds regions of interest in the chromatographic and mass
 %spectral dimension. It performs the binning of the mass spectral
 %measurements by organizing the cell array with all mass spectral
@@ -55,8 +55,10 @@ Options = checkOptions(Options,nScans);
 %Organize data
 
 %Load cdf and create PeaksMat
-pts                = ncread(FileName,'point_count');
-varNam             = ncinfo(FileName);
+pts                  = ncread(FileName,'point_count');
+varNam               = ncinfo(FileName);
+scan_number          = ncread(FileName,'scan_acquisition_number');
+
 if ismember({varNam.Variables.Name},'scan_index')
     scanIndex          = ncread(FileName,'scan_index');
 else
@@ -66,7 +68,7 @@ Rt                 = single(ncread(FileName,'scan_acquisition_time'));
 scanIndex(end + 1) = scanIndex(end) + pts(end);
 %Read drift times
 if Options.IMS
-    Dt = single(ncread(FileName,'drift_acquistisiton_time'));
+    Dt = single(ncread(FileName,'drift_acquisition_time'));  
 else
     Dt =[];
 end
@@ -77,24 +79,27 @@ else
     readFirstPosition    = scanIndex(Options.RtInt(1)) + 1;
     readNPoints          = scanIndex(Options.RtInt(2)) - scanIndex(Options.RtInt(1));
     pts                  = pts(Options.RtInt(1):Options.RtInt(2));
+    
     Rt                   = Rt(Options.RtInt(1):Options.RtInt(2));
     readPars             = {readFirstPosition,readNPoints};
+    
     if Options.IMS
-        Dt = Dt(Options.RtInt(1):Options.RtInt(2));
+        Dt = Dt;
     end
+    
 end
+
+trace = ncread(FileName,'mslevel')';
+
+%%
+
+%%
+
+
 PeaksMat      = zeros(readNpoints,4,'double');
 PeaksMat(:,1) = ncread(FileName,'mass_values',readPars{:});
 PeaksMat(:,2) = ncread(FileName,'intensity_values',readPars{:});
-if Options.IMS
-    scan_number = ncread(FileName,'scan_acquisition_number');
-    PeaksMat(:,3) = repelem(scan_number,pts)';
-%     [~,~,uRt]=unique(Rt);
-%      PeaksMat(:,5) = uRt(PeaksMat(:,3));
-      
-else
-    PeaksMat(:,3) = repelem(Options.RtInt(1):Options.RtInt(2),pts)';
-end
+PeaksMat(:,3) = repelem(scan_number,pts)';
 
 if Options.RefMass
     % Load RefMass
@@ -126,15 +131,16 @@ if Options.RefMass
             sub_int = intensity_values_RefMass(scan_index_RefMass == nRef);
             %            [max_intensity,max_ind] = max(sub_int(Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev)));
             if ~isempty(Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev))
-                RefMass_mz_diff(nRef) =  Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev);
+                RefMass_mz_diff(nRef) =  mean(Options.RefMass_mz-sub_mz(sub_int > Options.RefMass_thresh & abs(sub_mz-Options.RefMass_mz) < Options.RefMass_mzDev));
                 %            RefMass_mz_diff(nRef) = sub_mz(Ind);
             end
             nRef = nRef + 1;
 
         end
     end
+    pts_temp(scan_number) = pts; 
     RefMass_mz_diff(isnan(RefMass_mz_diff)) = median(RefMass_mz_diff,'omitnan');
-    RefMass_closest =  repelem( [cumsum(RefMass_closest)], pts);
+    RefMass_closest =  repelem( [cumsum(RefMass_closest)], pts_temp);
     RefMass_mz_diff =  RefMass_mz_diff(RefMass_closest);
     LockMass_Corr = RefMass_mz_diff./Options.RefMass_mz;
     PeaksMat(:,1) = (1+LockMass_Corr).*PeaksMat(:,1);
@@ -143,8 +149,6 @@ end
 % Read driftTimes
 
 aa = tic;
-% AboveThresh=SampleStruct.intensity_values.data>Options.thresh;
-% PeaksMat=PeaksMat(SampleStruct.intensity_values.data>Options.thresh,:);
 flag        = ':';
 if (Options.prefilter)
 
@@ -279,53 +283,10 @@ if Options.CollapseRoIs
     PeaksMat(:,4) = cumsum(PeaksMat(:,4));
 end
 
-% if Options.IMS
-%     if Options.minroi > 0
-% %         [~,~,uRt]=unique(Rt);
-%             
-% %         PeaksMat(:,5) = uRt(PeaksMat(:,3));
-%         PeaksMat(:,[1:2,5,4,3]) = PeaksMat;
-%         [~,~,uRt]=unique(PeaksMat(:,3));
-%         if (~Options.prefilter)
-%             [PeaksMat,order] = sortrows(PeaksMat,[4,3]);
-%             flag             = flag(order);
-%         else
-%             [PeaksMat,order] = sortrows(PeaksMat(flag,:),[4,3]);
-%             mzVec    = mzVec(order);
-%             mzVec    = mzVec(flag);
-% 
-%         end
-%         
-%         if Options.NumTrace >1 
-%             ind = 1:2:max(PeaksMat(:,3));
-%             PeaksMat1 = PeaksMat(ismember(uRt,ind),:);
-%             mzVec1    = mzVec(ismember(uRt,ind));
-% %             flag1 = flag(find(ismember(uRt,ind)));
-%             PeaksMat2 = PeaksMat(~ismember(uRt,ind),:);
-%             mzVec2    = mzVec(~ismember(uRt,ind));
-% %             flag2 = flag(~ismember(uRt,ind));
-%         [PeaksMat1,gaps,~,flagMZ] = minroiFilter2(PeaksMat1,flag,struct('GapAllowed',Options.GapAllowed,'minroi',Options.minroiChrom,'prefilter',Options.prefilter,'IMS_chrom_interpolation',true));
-%         mzVec1 = repelem(mzVec1(flagMZ(1:end-1)),gaps+1); %Removes exluded m/z due to minroiFilter2 and replicates m/z of gaps
-%         if (Options.GapAllowed && any(gaps)), PeaksMat1 = fillGaps(PeaksMat1,gaps); end
-%           
-%         
-%         [PeaksMat2,gaps,~,flagMZ] = minroiFilter2(PeaksMat2,flag,struct('GapAllowed',Options.GapAllowed,'minroi',Options.minroiChrom,'prefilter',Options.prefilter,'IMS_chrom_interpolation',true));
-%         mzVec2 = repelem(mzVec2(flagMZ(1:end-1)),gaps+1); %Removes exluded m/z due to minroiFilter2 and replicates m/z of gaps
-%         if (Options.GapAllowed && any(gaps)), PeaksMat2 = fillGaps(PeaksMat2,gaps); end
-%         PeaksMat = cat(1,PeaksMat1,PeaksMat2);
-%         mzVec = cat(1,mzVec1,mzVec2);
-%         
-%         end 
-%         PeaksMat(:,[1:2,5,4,3]) = PeaksMat;
-%         [~,~,PeaksMat(:,4)] = unique( PeaksMat(:,4));
-%         
-%         %Calculates new number of data points in PeaksMat after minroiFilter2
-%         nPts = height(PeaksMat);
-%     end
-% end
+
 % Gives the remaining groups after the chromatographic filter new group
 % number so the group numbers go from 1-number of groups remaining.
-sizeMZRoI = [PeaksMat(end,4),Options.RtInt(2)]; % sorted by construction
+sizeMZRoI = [PeaksMat(end,4),max(PeaksMat(:,3))]; % sorted by construction
 
 % Sums the intensities belonging to each individual measurement which occurs
 % at the same scan point and m/z group.
