@@ -59,7 +59,7 @@ pts                  = ncread(FileName,'point_count');
 varNam               = ncinfo(FileName);
 scan_number          = ncread(FileName,'scan_acquisition_number');
 
-if ismember({varNam.Variables.Name},'scan_index')
+if any(ismember({varNam.Variables.Name},'scan_index'))
     scanIndex          = ncread(FileName,'scan_index');
 else
     scanIndex = [0;cumsum(pts(1:end-1))];
@@ -100,7 +100,9 @@ PeaksMat      = zeros(readNpoints,4,'double');
 PeaksMat(:,1) = ncread(FileName,'mass_values',readPars{:});
 PeaksMat(:,2) = ncread(FileName,'intensity_values',readPars{:});
 PeaksMat(:,3) = repelem(scan_number,pts)';
-
+if max(trace)>1
+    PeaksMat(repelem(trace,pts) ~= Options.selectTrace,:) = [];
+end 
 if Options.RefMass
     % Load RefMass
     Rt_RefMass                 =    single(ncread([Options.RefMass_dir,'\',FileName],'scan_acquisition_time'));
@@ -388,6 +390,7 @@ outOptions = struct('minroi',10,...
     'wmean',true,...
     'RtInt',[1,len],...
     'GapAllowed',0,...
+    'selectTrace',1,...
     'verbose',true,...
     'prefilter',true,...
     'fillIn',0, ...
@@ -427,6 +430,7 @@ for (i = 1:length(optionNames))
                 case 'wmean',     fprintf(1,' If 1/TRUE -> use a weighted mean to calculate the m/z value, 0/FALSE = Non-weighted median')
                 case 'RtInt',     fprintf(1,' The whole file is processed')
                 case 'GapAllowed',fprintf(1,' n allows for gaps of at most n scans in RoI''s (0 - default)')
+                case 'selectTrace',fprintf(1,' selected mass trace (1 is the default')
                 case 'prefilter', fprintf(1,' If TRUE (default), the values below in absolute intensity are filtered before the ROI definition.')
                 case 'fillIn',    fprintf(1,' 0 by default')
                 case 'CollapseRoIs',    fprintf(1,' TRUE by default')
