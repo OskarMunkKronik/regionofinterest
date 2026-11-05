@@ -43,7 +43,7 @@ if ~isfield(Options,'wmean')
 end
 if ~isfield(Options,'RtInt')
     fprintf(1,'RtInt was not specified, please write this into the Options struct. Otherwise the entire CDF will be processed\n')
-    
+
 end
 % if ~isfield(Options,'OneDim')
 %     fprintf(1,'It is not specified if the data is one dimensional (OneDim = 1) or two dimensional (OneDim ~= 1), please write this into the Options struct\n')
@@ -80,7 +80,7 @@ for T=1:size(mzroi,2)
     end
 end
 % if or(Options.OneDim==1 , Options.Unfolded2DTensor==1)
-    Options.eScanMin=min(Options.sz,[],'all');
+Options.eScanMin=min(Options.sz,[],'all');
 % end
 % Options.RtInt = length(Options.RtInt(1):Options.RtInt(2));
 %Concatonates the mzroi's of all samples and high and low energy trace.
@@ -99,7 +99,7 @@ for T=1:size(mzroi,2)
     for k=1:size(mzroi,1)
         if isempty(mzroi{k,T})
         else
-            
+
             %
             mzInclude=sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
             MSroi{k,T}=MSroi{k,T}(mzInclude,:);
@@ -126,18 +126,18 @@ while Repeat
     while k<size(mzroiAll,1)
 
         if k == 1
-        if Options.ppm==1
-            wU=mzroiAll(k,1)+mzroiAll(k,1)*Options.mzerror*0.5*10^-6;
+            if Options.ppm==1
+                wU=mzroiAll(k,1)+mzroiAll(k,1)*Options.mzerror*0.5*10^-6;
+            else
+                wU=mzroiAll(k,1)+Options.mzerror*0.5;
+            end
         else
-            wU=mzroiAll(k,1)+Options.mzerror*0.5;
+            if Options.ppm==1
+                wU=mzroiAll(k,1)+mzroiAll(k,1)*Options.mzerror*10^-6;
+            else
+                wU=mzroiAll(k,1)+Options.mzerror;
+            end
         end
-        else 
-             if Options.ppm==1
-            wU=mzroiAll(k,1)+mzroiAll(k,1)*Options.mzerror*10^-6;
-        else
-            wU=mzroiAll(k,1)+Options.mzerror;
-             end
-        end 
 
 
 
@@ -147,14 +147,14 @@ while Repeat
         end
         mz=mz+1;
     end
-    
+
     if mzroiAll(k,1)<wU
         mzroiAll(k,4)=mz-1;
-        
+
     else
         mzroiAll(k,4)=mz;
     end
-    
+
     %Calculate mzroi_aug
     if Options.wmean==1
         w=accumarray(mzroiAll(:,4),OneNorm);
@@ -167,12 +167,12 @@ while Repeat
     if Options.ppm
         Repeat = or(sum(diff(mzroi_aug(2:end))./mzroi_aug(2:end-1)<Options.mzerror*10^-6)>0 , (diff(mzroi_aug(1:2))./mzroi_aug(1)<Options.mzerror*0.5*10^-6)>0);
     else
-         Repeat = or(sum(diff(mzroi_aug(2:end))<Options.mzerror)>0 , (diff(mzroi_aug(1:2))<Options.mzerror*0.5)>0);
+        Repeat = or(sum(diff(mzroi_aug(2:end))<Options.mzerror)>0 , (diff(mzroi_aug(1:2))<Options.mzerror*0.5)>0);
 
     end
     if Repeat
         mzroiAll(:,1)=mzroi_aug(mzroiAll(:,4));
-        
+
     end
 end
 
@@ -185,15 +185,15 @@ end
 
 
 % if Options.OneDim==1
-    Options.szMSroi=[max(mzroiAll(:,4)),Options.eScanMin];
-    [MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options);
+Options.szMSroi=[max(mzroiAll(:,4)),Options.eScanMin];
+[MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options);
 % else
 %     Options.sz=  [max(mzroiAll(:,4)),sum(Options.sz)];
 %     [MSroi_aug]=SumMZgroups4Pulsed2D(MSroi,mzroi,mzroiAll,Options);
 %     if Options.Unfolded2DTensor==1
 %         [MSroi_aug]=Unfolded2DTensor(MSroi,mzroi,mzroiAll,Options);
 %     end
-% 
+%
 % end
 
 %Calculates the mean m/z values of the individual m/z values from the different samples:
@@ -214,29 +214,38 @@ MSroi_aug=cell(max(mzroiAll(:,2)),size(mzroi,2));
 Options.szMSroi=repmat(Options.szMSroi,[max(mzroiAll(:,2)),1]);
 % MSroi_aug=zeros(max(mzroiAll(:,4)),Options.eScanMin,max(mzroiAll(:,2)),size(MSroi,2));
 for T=1:size(mzroi,2)
-    MSroiT=MSroi(:,T);
-    MSroi_augT=MSroi_aug(:,T);
-    % RtInt=squeeze(Options.RtInt(k,T,:))';
+    if ~Options.bigData
+        MSroiT=MSroi(:,T);
+        MSroi_augT=MSroi_aug(:,T);
+        % RtInt=squeeze(Options.RtInt(k,T,:))';
 
-    parfor k=1:max(mzroiAll(:,2))
-        %         hWaitbarMsgQueue.send(0);
-        % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,[RtInt(1):RtInt(2)]),k,T,Options);
-       
-                MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+        parfor k=1:max(mzroiAll(:,2))
+            %         hWaitbarMsgQueue.send(0);
+            % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,[RtInt(1):RtInt(2)]),k,T,Options);
+
+            MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+        end
+        MSroi_aug(:,T)=MSroi_augT;
+    else
+        for k=1:max(mzroiAll(:,2))
+            % hWaitbarMsgQueue.send(0);
+
+            MSroi_aug{k,T}=SumXAug(mzroiAll,MSroi{k,T}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+            MSroi{k,T} = [];
+        end
     end
-    MSroi_aug(:,T)=MSroi_augT;
 end
-if Options.SumMSLevels 
-if size(mzroi,2)>1
-    for k=1:max(mzroiAll(:,2))
-        minScan = min(size(MSroi_aug{k,1},2),size(MSroi_aug{k,2},2));
-        MSroi_aug{k,1}=MSroi_aug{k,1}(:,1:minScan)+MSroi_aug{k,2}(:,1:minScan);
-        %         MSroi_aug(:,:,k,T)=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2)),k,T,Options);
+if Options.SumMSLevels
+    if size(mzroi,2)>1
+        for k=1:max(mzroiAll(:,2))
+            minScan = min(size(MSroi_aug{k,1},2),size(MSroi_aug{k,2},2));
+            MSroi_aug{k,1}=MSroi_aug{k,1}(:,1:minScan)+MSroi_aug{k,2}(:,1:minScan);
+            %         MSroi_aug(:,:,k,T)=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2)),k,T,Options);
+        end
+        MSroi_aug(:,2)=[];
     end
-    MSroi_aug(:,2)=[];
 end
 end
-end 
 % %%  Unfolded 2D tensor:
 % function [MSroi_aug]=Unfolded2DTensor(MSroi,mzroi,mzroiAll,Options)
 % %Pre-allocate space for Augmented and summed intensities
@@ -253,7 +262,7 @@ end
 % % end
 % Options.szMSroi(:,2)=max( Options.szMSroi(:,2));
 % % MSroi_aug=zeros(max(mzroiAll(:,4)),Options.szMSroi(1,2),max(mzroiAll(:,2)),size(MSroi,2));
-% 
+%
 % % for T=1:size(mzroi,2)
 % %     MSroiT=MSroi(:,T);
 %     parfor k=1:max(mzroiAll(:,2))
@@ -265,13 +274,13 @@ end
 % end
 % % MSroi_aug=sum(MSroi_aug,4);
 % end
-% 
+%
 % %%
 % %Sum m/z across groups and Mass level 1 and 2 for pulsed Elution:
 % function [MSroi_aug]=SumMZgroups4Pulsed2D(MSroi,mzroi,mzroiAll,Options)
 % % szMSroi=[max(mzroiAll(:,4)),eScanMin];
 % % MSroi_aug=sparse(max(mzroiAll(:,4)),sum(Options.sz));
-% 
+%
 % for T=1:size(mzroi,2)
 %     MSroiT=MSroi(:,T);
 %     %     [s,e]=deal(max(mzroiAll(:,2)),1);
@@ -290,6 +299,6 @@ end
 %     for k=2:max(mzroiAll(:,2))
 %         MSroi_aug=cat(2,MSroi_aug,MSroiT{k});
 %     end
-%     end 
+%     end
 % end
 % end

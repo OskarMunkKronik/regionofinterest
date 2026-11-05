@@ -8,7 +8,7 @@ NbrePts =length(MZmultiplyFactors*Vecminroi);
 Msg = 'Determination of the mass accuracy...!';
 % Create ParFor Waitbar
 [~,hWaitbarMsgQueue]= ParForWaitbarCreateMH(Msg,NbrePts);
-Vecmzerror=repelem(MassAccuracy,length(MZmultiplyFactors)).*MZmultiplyFactors;
+Vecmzerror=repelem(MassAccuracy, MZmultiplyFactors(2)).*[1:MZmultiplyFactors(2)];
 
 % %% Optimization
 % OptionsROI = struct(
@@ -20,7 +20,7 @@ GapAllowed = Options.GapAllowed;
 prefilter = Options.prefilter;
 verbose   = Options.verbose;
 fillIn    = Options.fillIn;
-NumTrace = Options.NumTrace
+NumTrace = Options.NumTrace;
 
 nmz=zeros(length(Vecminroi),length(Vecmzerror));
 for mr=1:length(Vecminroi)
@@ -33,7 +33,7 @@ for mr=1:length(Vecminroi)
 
         % Options.mzerror=Vecmzerror(mass);
 
-        [mzroi,MSroi,~,~,~,~,~]=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn,'IMS',IMS,'NumTrace',NumTrace));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
+        [mzroi,MSroi,PeaksMat,~,~,~,~]=ROIpeaks_ACN(FileName,struct('mzerror',Vecmzerror(mass),'minroi',minroi,'ppm',ppm,'thresh',thresh,'wmean',wmean,'GapAllowed',GapAllowed,'prefilter',prefilter,'verbose',verbose,'fillIn',fillIn,'IMS',IMS,'NumTrace',NumTrace));%,thresh,mzerror,minroi,sScan,eScan,ppm,wmean);
         nmz(mr,mass)=length(mzroi);
     end
 end

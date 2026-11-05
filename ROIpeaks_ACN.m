@@ -57,7 +57,19 @@ Options = checkOptions(Options,nScans);
 %Load cdf and create PeaksMat
 pts                  = ncread(FileName,'point_count');
 varNam               = ncinfo(FileName);
+if any(ismember({varNam.Variables.Name},'scan_acquisition_number'))
 scan_number          = ncread(FileName,'scan_acquisition_number');
+elseif any(ismember({varNam.Variables.Name},'actual_scan_number'))
+    scan_number  = ncread(FileName,'actual_scan_number');
+if all(scan_number <0)
+    [~,~,scan_number]= unique(ncread(FileName,'scan_acquisition_time'));
+    % scan_number = ncread(FileName,'scan_acquisition_time');
+end
+    if min(scan_number) == 0 
+        scan_number = scan_number + 1;
+    end 
+end 
+
 
 if any(ismember({varNam.Variables.Name},'scan_index'))
     scanIndex          = ncread(FileName,'scan_index');
@@ -88,9 +100,11 @@ else
     end
     
 end
-
+if any(ismember({varNam.Variables.Name},'mslevel'))
 trace = ncread(FileName,'mslevel')';
-
+else 
+    trace = ones(length(scan_number),1);
+end 
 %%
 
 %%
@@ -100,9 +114,9 @@ PeaksMat      = zeros(readNpoints,4,'double');
 PeaksMat(:,1) = ncread(FileName,'mass_values',readPars{:});
 PeaksMat(:,2) = ncread(FileName,'intensity_values',readPars{:});
 PeaksMat(:,3) = repelem(scan_number,pts)';
-if max(trace)>1
-    PeaksMat(repelem(trace,pts) ~= Options.selectTrace,:) = [];
-end 
+% if max(trace)>1
+%     PeaksMat = PeaksMat(repelem(trace,pts) == Options.selectTrace,:);
+% end 
 if Options.RefMass
     % Load RefMass
     Rt_RefMass                 =    single(ncread([Options.RefMass_dir,'\',FileName],'scan_acquisition_time'));
@@ -179,6 +193,7 @@ end
 Repeat   = true;
 RepeatNo = 1;
 nPts     = size(PeaksMat,1);
+%% 
 
 while Repeat
 
