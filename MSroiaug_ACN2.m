@@ -218,7 +218,7 @@ if Options.wmean==1
     w=OneNorm./w(mzroiAll(:,4));
     mzroi_aug = accumarray(mzroiAll(:,4),w.*mzroiAll(:,1));
 else
-    mzroi_aug=accumarray(mzroiAll(:,4),mzroiAll(:,1),[],@median);
+    mzroi_aug = accumarray(mzroiAll(:,4),mzroiAll(:,1),[],@median);
 end
 mzroiAll=cat(2,mzroiAll,trace);
 end
@@ -229,8 +229,8 @@ function [MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options, fileList_mat,mzInc
 MSroi_aug=cell(max(mzroiAll(:,2)),size(mzroi,2));
 Options.szMSroi=repmat(Options.szMSroi,[max(mzroiAll(:,2)),1]);
 saveDir = fullfile(Options.Paths.save2mat,'ROI','Augmented','Samples');
-q          = size(mzroi,2)*max(mzroiAll(:,2));
-
+% q          = size();
+q = progressParfor(size(mzroi,1)*size(mzroi,2));
 if ~exist(saveDir,"dir")
     mkdir(saveDir)
 end
