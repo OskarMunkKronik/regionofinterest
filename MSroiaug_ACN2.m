@@ -59,6 +59,7 @@ Msg = 'Augmenting  Progress...!';
 NbrePts = size(MSroi,1)*size(MSroi,2) ;
 % Create ParFor Waitbar
 [hWaitbar,hWaitbarMsgQueue]= ParForWaitbarCreateMH(Msg,NbrePts);
+fileList_mat = dir([Options.Paths.save2mat,'/ROI/Samples/*.mat']);
 
 mzroiAll=[];
 OneNorm=[];
@@ -72,10 +73,24 @@ trace=[];
 %Find the sample with the minimum number of scan points. Then the scan
 %points from 1- eScanMin is used for the other samples.
 Options.sz=nan(size(mzroi,1),size(mzroi,2));
+mzInclude = cell(size(mzroi,1),size(mzroi,2));
 for T=1:size(mzroi,2)
     for k=1:size(mzroi,1)
-        if ~isempty(MSroi{k,T})
-            Options.sz(k,T)=size(MSroi{k,T},2);
+        if ~isempty(mzroi{k,T})
+            % fprintf(1,'Load sample data for augmentation: %i/%i\n',k,length(fileList_mat))
+            % ind = contains({fileList_mat.name},fileList(k).name(1:end-4));
+            d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
+            % Options.Paths.save2mat = 'C:\Users\mht541\Documents\Python_Scripts\2DLC_workflow\matlab\DataFiles';
+            % mzroi{k,T} = d.mzroi;
+            MSroi_tmp = d.MSroi;
+            mzInclude{k,T} = sum(MSroi_tmp(:,1:Options.RtInt(k,T))>0,2)>0;
+            MSroi_tmp = MSroi_tmp(mzInclude{k,T},:);
+            % mzInclude = sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
+            % MSroi_tmp = MSroi{k,T}(mzInclude,:);
+            % OneNorm=sum(MSroi_tmp,2);
+            OneNorm=cat(1,OneNorm,sum(MSroi_tmp,2));
+            % Options.sz(k,T) = size(MSroi{k,T},2);
+            Options.sz(k,T) = size(MSroi_tmp,2);
         end
     end
 end
@@ -87,13 +102,13 @@ Options.eScanMin=min(Options.sz,[],'all');
 %THIS could be optimized and parallelized.
 % for T=1:size(mzroi,2)
 
-if ~isfield(Options,'RtInt')
-    for T=1:size(mzroi,2)
-        for k=1:size(mzroi,1)
-            Options.RtInt(k,T,:)=[1,Options.sz(k,T)];
-        end
-    end
-end
+% if ~isfield(Options,'RtInt')
+%     for T=1:size(mzroi,2)
+%         for k=1:size(mzroi,1)
+%             Options.RtInt(k,T,:)=[1,Options.sz(k,T)];
+%         end
+%     end
+% end
 
 for T=1:size(mzroi,2)
     for k=1:size(mzroi,1)
@@ -101,12 +116,12 @@ for T=1:size(mzroi,2)
         else
 
             %
-            mzInclude=sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
-            MSroi{k,T}=MSroi{k,T}(mzInclude,:);
+            % mzInclude=sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
+            % MSroi{k,T}=MSroi{k,T}(mzInclude,:);
             %                OneNorm=sum(MSroi{k,T},2);
-            OneNorm=cat(1,OneNorm,sum(MSroi{k,T},2));
-            mzroiAll=cat(1,mzroiAll,cat(2,mzroi{k,T}(mzInclude),repelem(k,length(mzroi{k,T}(mzInclude)))',(1:length(mzroi{k,T}(mzInclude)))'));
-            trace=cat(1,trace,repelem(T,length(mzroi{k,T}(mzInclude)))');
+            % OneNorm=cat(1,OneNorm,sum(MSroi{k,T},2));
+            mzroiAll=cat(1,mzroiAll,cat(2,mzroi{k,T}(mzInclude{k,T}),repelem(k,length(mzroi{k,T}(mzInclude{k,T})))',(1:length(mzroi{k,T}(mzInclude{k,T})))'));
+            trace=cat(1,trace,repelem(T,length(mzroi{k,T}(mzInclude{k,T})))');
         end
     end
 end
@@ -186,7 +201,8 @@ end
 
 % if Options.OneDim==1
 Options.szMSroi=[max(mzroiAll(:,4)),Options.eScanMin];
-[MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options);
+[MSroi_aug]=SumMSlevel([],mzroi,mzroiAll,Options,fileList_mat,mzInclude);
+
 % else
 %     Options.sz=  [max(mzroiAll(:,4)),sum(Options.sz)];
 %     [MSroi_aug]=SumMZgroups4Pulsed2D(MSroi,mzroi,mzroiAll,Options);
@@ -208,30 +224,48 @@ mzroiAll=cat(2,mzroiAll,trace);
 end
 
 %%  Sum m/z across groups and Mass level 1 and 2:
-function [MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options)
+function [MSroi_aug]=SumMSlevel(MSroi,mzroi,mzroiAll,Options, fileList_mat,mzInclude)
 %Pre-allocate space for Augmented and summed intensities
 MSroi_aug=cell(max(mzroiAll(:,2)),size(mzroi,2));
 Options.szMSroi=repmat(Options.szMSroi,[max(mzroiAll(:,2)),1]);
+saveDir = fullfile(Options.Paths.save2mat,'ROI','Augmented','Samples');
+q          = size(mzroi,2)*max(mzroiAll(:,2));
+
+if ~exist(saveDir,"dir")
+    mkdir(saveDir)
+end
 % MSroi_aug=zeros(max(mzroiAll(:,4)),Options.eScanMin,max(mzroiAll(:,2)),size(MSroi,2));
 for T=1:size(mzroi,2)
     if ~Options.bigData
-        MSroiT=MSroi(:,T);
-        MSroi_augT=MSroi_aug(:,T);
+        % MSroiT=MSroi(:,T);
+        % MSroi_augT=MSroi_aug(:,T);
         % RtInt=squeeze(Options.RtInt(k,T,:))';
-
+        mzIncludeT = mzInclude(:,T);
         parfor k=1:max(mzroiAll(:,2))
-            %         hWaitbarMsgQueue.send(0);
+            send(q, k);
+            % hWaitbarMsgQueue.send(0);
             % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,[RtInt(1):RtInt(2)]),k,T,Options);
+            d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
+            % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
 
-            MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+            MSroi_augT{k}=SumXAug(mzroiAll,d.MSroi(mzIncludeT{k},Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
         end
         MSroi_aug(:,T)=MSroi_augT;
     else
         for k=1:max(mzroiAll(:,2))
+            send(q, k);
             % hWaitbarMsgQueue.send(0);
+            d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
+            % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
 
-            MSroi_aug{k,T}=SumXAug(mzroiAll,MSroi{k,T}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
-            MSroi{k,T} = [];
+            MSroi_aug=SumXAug(mzroiAll,d.MSroi(mzInclude{k,T},1:min(Options.RtInt(k,T))),k,T,Options);
+            %% Save results
+            try
+                save(fullfile(saveDir, fileList_mat(k).name), 'MSroi_aug', 'Options');
+            catch
+                save(fullfile(saveDir, fileList_mat(k).name), 'MSroi_aug', 'Options','-v7.3');
+            end
+            % MSroi{k,T} = [];
         end
     end
 end

@@ -22,5 +22,5 @@ for mz=1:size(mzroiSample,1)
     end
 end
 
-X=accumarray([posXrNew,posX(1:end-1,2)],posX(1:end-1,3),[Options.szMSroi(k,1),Options.RtInt(k,T,2)],[],[],1);
+X=accumarray([posXrNew,posX(1:end-1,2)],posX(1:end-1,3),[Options.szMSroi(k,1),Options.RtInt(k,T)],[],[],1);
 end
