@@ -75,25 +75,47 @@ trace=[];
 Options.sz=nan(size(mzroi,1),size(mzroi,2));
 mzInclude = cell(size(mzroi,1),size(mzroi,2));
 for T=1:size(mzroi,2)
-    for k=1:size(mzroi,1)
-        if ~isempty(mzroi{k,T})
-            % fprintf(1,'Load sample data for augmentation: %i/%i\n',k,length(fileList_mat))
-            % ind = contains({fileList_mat.name},fileList(k).name(1:end-4));
-            d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
-            % Options.Paths.save2mat = 'C:\Users\mht541\Documents\Python_Scripts\2DLC_workflow\matlab\DataFiles';
-            % mzroi{k,T} = d.mzroi;
-            MSroi_tmp = d.MSroi;
-            mzInclude{k,T} = sum(MSroi_tmp(:,1:Options.RtInt(k,T))>0,2)>0;
-            MSroi_tmp = MSroi_tmp(mzInclude{k,T},:);
-            % mzInclude = sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
-            % MSroi_tmp = MSroi{k,T}(mzInclude,:);
-            % OneNorm=sum(MSroi_tmp,2);
-            OneNorm=cat(1,OneNorm,sum(MSroi_tmp,2));
-            % Options.sz(k,T) = size(MSroi{k,T},2);
-            Options.sz(k,T) = size(MSroi_tmp,2);
+    % parfor k=1:size(mzroi,1)
+    %     if ~isempty(mzroi{k,T})
+    %         % fprintf(1,'Load sample data for augmentation: %i/%i\n',k,length(fileList_mat))
+    %         % ind = contains({fileList_mat.name},fileList(k).name(1:end-4));
+    %         d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
+    %         % Options.Paths.save2mat = 'C:\Users\mht541\Documents\Python_Scripts\2DLC_workflow\matlab\DataFiles';
+    %         % mzroi{k,T} = d.mzroi;
+    %         MSroi_tmp = d.MSroi;
+    %         mzInclude{k,T} = sum(MSroi_tmp(:,1:Options.RtInt(k,T))>0,2)>0;
+    %         MSroi_tmp = MSroi_tmp(mzInclude{k,T},:);
+    %         % mzInclude = sum(MSroi{k,T}(:,Options.RtInt(k,T,1):Options.RtInt(k,T,2))>0,2)>0;
+    %         % MSroi_tmp = MSroi{k,T}(mzInclude,:);
+    %         % OneNorm=sum(MSroi_tmp,2);
+    %         OneNorm=cat(1,OneNorm,sum(MSroi_tmp,2));
+    %         % Options.sz(k,T) = size(MSroi{k,T},2);
+    %         Options.sz(k,T) = size(MSroi_tmp,2);
+    %     end
+    n        = size(mzroi, 1);
+    hasData  = ~cellfun(@isempty, mzroi(:, T));
+    rtInt_T  = Options.RtInt(:, T);          % same element your original RtInt(k,T) read
+    fileNames = {fileList_mat.name};
+
+    mzIncK   = cell(n, 1);
+    oneNormK = cell(n, 1);
+    szK      = nan(n, 1);
+
+    parfor k = 1:n
+        if hasData(k)
+            [mzIncK{k}, oneNormK{k}, szK(k)] = ...
+                sampleAugStats(Options, fileNames{k}, rtInt_T(k));
         end
     end
+
+    % ---- Gather on the client (order of k is preserved) ----
+    for k = find(hasData).'
+        mzInclude{k, T} = mzIncK{k};
+        Options.sz(k, T) = szK(k);
+    end
+    OneNorm = cat(1, OneNorm, vertcat(oneNormK{:}));
 end
+
 % if or(Options.OneDim==1 , Options.Unfolded2DTensor==1)
 Options.eScanMin=min(Options.sz,[],'all');
 % end
@@ -242,15 +264,22 @@ for T=1:size(mzroi,2)
         % RtInt=squeeze(Options.RtInt(k,T,:))';
         mzIncludeT = mzInclude(:,T);
         parfor k=1:max(mzroiAll(:,2))
-            send(q, k);
-            % hWaitbarMsgQueue.send(0);
-            % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,[RtInt(1):RtInt(2)]),k,T,Options);
-            d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
-            % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
-
-            MSroi_augT{k}=SumXAug(mzroiAll,d.MSroi(mzIncludeT{k},Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+            % send(q, k);
+            % % hWaitbarMsgQueue.send(0);
+            % % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,[RtInt(1):RtInt(2)]),k,T,Options);
+            % d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
+            % % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+            %
+            % MSroi_aug=SumXAug(mzroiAll,d.MSroi(mzIncludeT{k},Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
+            % %% Save results
+            % try
+            %     save(fullfile(saveDir, fileList_mat(k).name), 'MSroi_aug', 'Options');
+            % catch
+            %     save(fullfile(saveDir, fileList_mat(k).name), 'MSroi_aug', 'Options','-v7.3');
+            % end
+            processSampleAug(q, k, Options, fileList_mat, mzroiAll, mzIncludeT{k}, T, saveDir)
         end
-        MSroi_aug(:,T)=MSroi_augT;
+        % MSroi_aug(:,T)=MSroi_augT;
     else
         for k=1:max(mzroiAll(:,2))
             send(q, k);
@@ -258,7 +287,7 @@ for T=1:size(mzroi,2)
             d = load(fullfile(Options.Paths.save2mat,'ROI','Samples',fileList_mat(k).name));
             % MSroi_augT{k}=SumXAug(mzroiAll,MSroiT{k}(:,Options.RtInt(k,T,1):min(Options.RtInt(k,:,2))),k,T,Options);
 
-            MSroi_aug=SumXAug(mzroiAll,d.MSroi(mzInclude{k,T},1:min(Options.RtInt(k,T))),k,T,Options);
+            MSroi_aug=SumXAug(mzroiAll,d.MSroi(mzInclude{k,T},1:min(Options.RtInt(:,T))),k,T,Options);
             %% Save results
             try
                 save(fullfile(saveDir, fileList_mat(k).name), 'MSroi_aug', 'Options');
@@ -279,6 +308,42 @@ if Options.SumMSLevels
         MSroi_aug(:,2)=[];
     end
 end
+end
+
+function processSampleAug(q, k, Options, fileList_mat, mzroiAll, mzIncludeT_k, T, saveDir)
+%PROCESSSAMPLEAUG  Load one ROI sample, run SumXAug and save MSroi_aug.
+%   q             parallel.pool.DataQueue for progress (send(q,k))
+%   k             sample index
+%   mzIncludeT_k  mzIncludeT{k} (only this sample's entry is passed)
+
+send(q, k);
+
+d = load(fullfile(Options.Paths.save2mat, 'ROI', 'Samples', fileList_mat(k).name));
+
+MSroi_aug = SumXAug(mzroiAll, ...
+    d.MSroi(mzIncludeT_k,1:min(Options.RtInt(:,T))), ...
+    k, T, Options);
+
+%% Save results
+outFile = fullfile(saveDir, fileList_mat(k).name);
+try
+    save(outFile, 'MSroi_aug', 'Options');
+catch
+    save(outFile, 'MSroi_aug', 'Options', '-v7.3');
+end
+end
+function [mzInc, oneNorm, sz] = sampleAugStats(Options, fileName, rtInt_kT)
+%SAMPLEAUGSTATS  Load one ROI sample and compute its m/z inclusion mask,
+%   per-m/z sum (for OneNorm) and number of time points.
+%   rtInt_kT   Options.RtInt(k,T) for this sample (scalar)
+
+d = load(fullfile(Options.Paths.save2mat, 'ROI', 'Samples', fileName), 'MSroi');
+
+MSroi_tmp = d.MSroi;
+mzInc     = sum(MSroi_tmp(:, 1:rtInt_kT) > 0, 2) > 0;
+MSroi_tmp = MSroi_tmp(mzInc, :);
+oneNorm   = sum(MSroi_tmp, 2);
+sz        = size(MSroi_tmp, 2);
 end
 % %%  Unfolded 2D tensor:
 % function [MSroi_aug]=Unfolded2DTensor(MSroi,mzroi,mzroiAll,Options)
